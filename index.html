@@ -137,9 +137,6 @@
       inset:0;
       pointer-events:none;
       opacity:.25;
-      background-image:
-        linear-gradient(45deg, transparent 49.8%, rgba(255,255,255,.18) 50%, transparent 50.2%),
-        linear-gradient(-45deg, transparent 49.8%, rgba(255,255,255,.18) 50%, transparent 50.2%);
     }
     .guide::before, .guide::after{
       content:"";
@@ -148,7 +145,7 @@
       top:50%;
       transform:translate(-50%,-50%);
       background:#fff;
-      opacity:.18;
+      opacity:.25;
     }
     .guide::before{ width:2px; height:100%; }
     .guide::after{ height:2px; width:100%; }
@@ -173,6 +170,10 @@
       top:50%;
       transform:translate(-50%,-50%);
       background:#000;
+      overflow:hidden;
+      background-image:
+        linear-gradient(45deg, transparent 49.5%, rgba(255,255,255,.6) 50%, transparent 50.5%),
+        linear-gradient(-45deg, transparent 49.5%, rgba(255,255,255,.6) 50%, transparent 50.5%);
       border-radius:10px;
     }
 
@@ -437,8 +438,6 @@ function applySize(vmin){
         if (els.ratioLabel) els.ratioLabel.textContent = '1:1';
       }
     }
-
-
     // synchronizace přehrávání a času (jednoduchá, robustní)
     let syncTimer = null;
     function startSync(){
@@ -514,6 +513,10 @@ function applySize(vmin){
         master.addEventListener('loadedmetadata', onOk, { once:true });
         master.addEventListener('error', onErr, { once:true });
       });
+
+      // uložit originální poměr videa (šířka / výška) a aplikovat režim poměru
+      originalRatio = (master.videoWidth && master.videoHeight) ? (master.videoWidth / master.videoHeight) : 1;
+      setRatioMode(ratioMode);
 
       setEnabled(true);
 
