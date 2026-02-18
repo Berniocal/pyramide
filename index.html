@@ -286,6 +286,9 @@
         <div class="guide"></div>
         <div class="centerHole"></div>
 
+        <!-- master video (pro captureStream, skryté) -->
+        <video id="vMaster" playsinline style="position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;"></video>
+
         <!-- 4 synchronizovaná videa -->
         <video class="v top"    id="vTop"    playsinline></video>
         <video class="v bottom" id="vBottom" playsinline></video>
@@ -324,6 +327,7 @@
       muteBtn: document.getElementById('muteBtn'),
       loopBtn: document.getElementById('loopBtn'),
       vids: {
+        master: document.getElementById('vMaster'),
         top: document.getElementById('vTop'),
         bottom: document.getElementById('vBottom'),
         left: document.getElementById('vLeft'),
@@ -332,6 +336,9 @@
     };
 
     let currentURL = null;
+
+    let streamMode = false;
+    let lastStream = null;
 
     // nastavení uložené v localStorage
     let mode = localStorage.getItem('holoMode') || 'standard'; // 'standard' | 'invert'
@@ -362,17 +369,28 @@
       loopOn = on;
       localStorage.setItem('holoLoop', loopOn ? '1' : '0');
       els.loopBtn.textContent = '🔁 Loop: ' + (loopOn ? 'ON' : 'OFF');
-      for (const v of Object.values(els.vids)) v.loop = loopOn;
-    }
 
-    function setMuted(on){
+      els.vids.master.loop = loopOn;
+      if (!streamMode){
+        for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.loop = loopOn;
+      }
+    }
+function setMuted(on){
       muted = on;
       localStorage.setItem('holoMuted', muted ? '1' : '0');
       els.muteBtn.textContent = muted ? '🔇 / 🔊' : '🔊 / 🔇';
-      for (const v of Object.values(els.vids)) v.muted = muted;
-    }
 
-    function applySize(vmin){
+      // master řídí zvuk
+      els.vids.master.muted = muted;
+
+      // kopie v režimu stream jsou vždy ztlumené
+      if (!streamMode){
+        for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.muted = muted;
+      } else {
+        for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.muted = true;
+      }
+    }
+function applySize(vmin){
       document.documentElement.style.setProperty('--size', `min(${vmin}vmin, 620px)`);
       els.sizeLabel.textContent = `${vmin}vmin`;
       localStorage.setItem('holoSize', String(vmin));
@@ -438,13 +456,89 @@
       if (currentURL && currentURL.startsWith('blob:')) URL.revokeObjectURL(currentURL);
       currentURL = url;
 
-      for (const v of Object.values(els.vids)) {
+      // zruš případný starý stream
+      streamMode = false;
+      lastStream = null;
+      for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
+        try { v.srcObject = null; } catch(e) {}
+      }
+
+      const master = els.vids.master;
+
+      // nastav master
+      master.src = url;
+      master.playsInline = true;
+      master.preload = 'auto';
+      master.loop = loopOn;
+      master.muted = muted;
+
+      // počkat na metadata
+      await new Promise((resolve, reject) => {
+        const onOk = () => { cleanup(); resolve(); };
+        const onErr = () => { cleanup(); reject(new Error('Nelze načíst video')); };
+        const cleanup = () => {
+          master.removeEventListener('loadedmetadata', onOk);
+          master.removeEventListener('error', onErr);
+        };
+        master.addEventListener('loadedmetadata', onOk, { once:true });
+        master.addEventListener('error', onErr, { once:true });
+      });
+
+      setEnabled(true);
+
+      // pokus o autoplay masteru (na mobilu většinou jen když je muted)
+      try { await master.play(); } catch(e) {}
+
+      // --- Preferovaný režim: captureStream (1× dekódování, 4× zobrazení) ---
+      if (master.captureStream) {
+        try{
+          lastStream = master.captureStream();
+          streamMode = true;
+
+          for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
+            v.srcObject = lastStream;
+            v.playsInline = true;
+            v.preload = 'auto';
+            // kopie vždy muted (hlas řídí master)
+            v.muted = true;
+            // loop řídí master
+            v.loop = false;
+          }
+
+          // rozběhnout kopie
+          for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
+            try { await v.play(); } catch(e) {}
+          }
+
+          // v režimu stream není potřeba sync
+          stopSync();
+          return;
+        }catch(e){
+          // captureStream selhalo → fallback
+          streamMode = false;
+          lastStream = null;
+          for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
+            try { v.srcObject = null; } catch(_) {}
+          }
+        }
+      }
+
+      // --- Fallback: původní 4× <video src> + jemná synchronizace ---
+      for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
         v.src = url;
         v.playsInline = true;
         v.preload = 'auto';
         v.loop = loopOn;
         v.muted = muted;
       }
+
+      startSync();
+
+      for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) {
+        try { await v.play(); } catch(e) {}
+      }
+    }
+
 
       // počkat na metadata (aspoň u jednoho)
       await new Promise((resolve, reject) => {
@@ -527,15 +621,18 @@
     });
 
     els.playBtn.addEventListener('click', async () => {
-      const ref = els.vids.bottom;
+      const master = els.vids.master;
+      const ref = streamMode ? master : els.vids.bottom;
+
       if (ref.paused){
-        for (const v of Object.values(els.vids)) { try{ await v.play(); }catch(e){} }
+        try{ await master.play(); }catch(e){}
+        for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) { try{ await v.play(); }catch(e){} }
       } else {
-        for (const v of Object.values(els.vids)) v.pause();
+        for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.pause();
+        master.pause();
       }
     });
-
-    els.muteBtn.addEventListener('click', () => setMuted(!muted));
+els.muteBtn.addEventListener('click', () => setMuted(!muted));
     els.loopBtn.addEventListener('click', () => setLoop(!loopOn));
 
     els.sizeRange.addEventListener('input', (e) => applySize(Number(e.target.value)));
