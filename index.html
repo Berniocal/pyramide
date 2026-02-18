@@ -24,9 +24,13 @@
       /* zoom videí (1.0–3.0) */
       --zoom: 1;
 
-      /* velikost jednoho videa (čtverec) */
-      --videoSize: calc((var(--size) - var(--gap) * 2) / 2);
-    }
+      /* poměr stran videa (šířka / výška) */
+      --ratio: 1;
+
+      /* šířka a výška jednoho videa */
+      --videoW: calc((var(--size) - var(--gap) * 2) / 2);
+      --videoH: calc(var(--videoW) / var(--ratio));
+}
 
     html,body{height:100%;}
     body{
@@ -133,6 +137,9 @@
       inset:0;
       pointer-events:none;
       opacity:.25;
+      background-image:
+        linear-gradient(45deg, transparent 49.8%, rgba(255,255,255,.18) 50%, transparent 50.2%),
+        linear-gradient(-45deg, transparent 49.8%, rgba(255,255,255,.18) 50%, transparent 50.2%);
     }
     .guide::before, .guide::after{
       content:"";
@@ -149,8 +156,8 @@
     /* 4 videa rozmístěná do kříže */
     .v{
       position:absolute;
-      width: var(--videoSize);
-      height: var(--videoSize);
+      width: var(--videoW);
+      height: var(--videoH);
       object-fit: cover; /* vyplní čtverec, ořeže */
       background:#000;
       filter: saturate(1.05) contrast(1.05);
@@ -170,9 +177,9 @@
     }
 
     /* pozice */
-    .top    { left:50%; top: calc(50% - var(--gap) - var(--videoSize)); }
+    .top    { left:50%; top: calc(50% - var(--gap) - var(--videoH)); }
     .bottom { left:50%; top: calc(50% + var(--gap)); }
-    .left   { left: calc(50% - var(--gap) - var(--videoSize)); top:50%; }
+    .left   { left: calc(50% - var(--gap) - var(--videoW)); top:50%; }
     .right  { left: calc(50% + var(--gap)); top:50%; }
 
     /* rotace pro Pepper’s Ghost (standardní “pyramida na telefonu”) + ZOOM */
@@ -276,6 +283,11 @@
       </div>
       <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1" style="width:200px" disabled />
 
+      <div class="chip">
+        Poměr: <strong id="ratioLabel">1:1</strong>
+      </div>
+      <button class="btn" id="ratioBtn" disabled>📐 1:1 / Auto</button>
+
       <button class="btn" id="playBtn" disabled>▶︎ / ⏸︎</button>
       <button class="btn" id="muteBtn" disabled>🔇 / 🔊</button>
       <button class="btn" id="loopBtn" disabled>🔁 Loop: ON</button>
@@ -346,12 +358,16 @@
     let muted = (localStorage.getItem('holoMuted') ?? '1') === '1'; // default muted = ON (autoplay friendly)
     let pure = false; // čistý režim fullscreen
 
+    let ratioMode = localStorage.getItem('holoRatioMode') || 'square'; // 'square' | 'auto'
+    let originalRatio = 1;
+
     function setEnabled(enabled){
       els.fsBtn.disabled = !enabled;
       els.modeBtn.disabled = !enabled;
       els.sizeRange.disabled = !enabled;
       els.gapRange.disabled = !enabled;
       els.zoomRange.disabled = !enabled;
+      els.ratioBtn.disabled = !enabled;
       els.playBtn.disabled = !enabled;
       els.muteBtn.disabled = !enabled;
       els.loopBtn.disabled = !enabled;
@@ -406,6 +422,18 @@ function applySize(vmin){
       document.documentElement.style.setProperty('--zoom', z);
       els.zoomLabel.textContent = z.toFixed(1) + "×";
       localStorage.setItem('holoZoom', String(z));
+    }
+
+    function setRatioMode(mode){
+      ratioMode = mode;
+      localStorage.setItem('holoRatioMode', ratioMode);
+      if (ratioMode === 'auto'){
+        document.documentElement.style.setProperty('--ratio', originalRatio);
+        els.ratioLabel.textContent = 'Auto';
+      } else {
+        document.documentElement.style.setProperty('--ratio', 1);
+        els.ratioLabel.textContent = '1:1';
+      }
     }
 
     // synchronizace přehrávání a času (jednoduchá, robustní)
@@ -617,6 +645,10 @@ els.muteBtn.addEventListener('click', () => setMuted(!muted));
     els.gapRange.addEventListener('input', (e) => applyGap(Number(e.target.value)));
     els.zoomRange.addEventListener('input', (e) => applyZoom(Number(e.target.value)));
 
+    els.ratioBtn.addEventListener('click', () => {
+      setRatioMode(ratioMode === 'square' ? 'auto' : 'square');
+    });
+
     els.fsBtn.addEventListener('click', async () => {
       // klasické tlačítko necháváme jako alternativu
       if (!document.fullscreenElement){
@@ -640,6 +672,8 @@ els.muteBtn.addEventListener('click', () => setMuted(!muted));
     applySize(savedSize);
     applyGap(savedGap);
     applyZoom(savedZoom);
+    // výchozí poměr před načtením videa
+    try{ setRatioMode(ratioMode); }catch(e){}
 
     setLoop(loopOn);
     setMuted(muted);
