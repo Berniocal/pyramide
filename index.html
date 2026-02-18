@@ -540,28 +540,6 @@ function applySize(vmin){
     }
 
 
-      // počkat na metadata (aspoň u jednoho)
-      await new Promise((resolve, reject) => {
-        const v = els.vids.bottom;
-        const onOk = () => { cleanup(); resolve(); };
-        const onErr = () => { cleanup(); reject(new Error('Nelze načíst video')); };
-        const cleanup = () => {
-          v.removeEventListener('loadedmetadata', onOk);
-          v.removeEventListener('error', onErr);
-        };
-        v.addEventListener('loadedmetadata', onOk, { once:true });
-        v.addEventListener('error', onErr, { once:true });
-      });
-
-      setEnabled(true);
-      startSync();
-
-      // pokus o autoplay (na mobilu většinou jen když je muted)
-      for (const v of Object.values(els.vids)) {
-        try { await v.play(); } catch(e) {}
-      }
-    }
-
     // --- ČISTÝ FULLSCREEN REŽIM (dvojklik) ---
     async function enterPureMode(){
       pure = true;
