@@ -645,9 +645,12 @@ els.muteBtn.addEventListener('click', () => setMuted(!muted));
     els.gapRange.addEventListener('input', (e) => applyGap(Number(e.target.value)));
     els.zoomRange.addEventListener('input', (e) => applyZoom(Number(e.target.value)));
 
-    els.ratioBtn.addEventListener('click', () => {
-      setRatioMode(ratioMode === 'square' ? 'auto' : 'square');
-    });
+if (els.ratioBtn) {
+  els.ratioBtn.addEventListener('click', () => {
+    setRatioMode(ratioMode === 'square' ? 'auto' : 'square');
+  });
+}
+
 
     els.fsBtn.addEventListener('click', async () => {
       // klasické tlačítko necháváme jako alternativu
