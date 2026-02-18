@@ -335,6 +335,8 @@
       gapLabel: document.getElementById('gapLabel'),
       zoomRange: document.getElementById('zoomRange'),
       zoomLabel: document.getElementById('zoomLabel'),
+      ratioBtn: document.getElementById('ratioBtn'),
+      ratioLabel: document.getElementById('ratioLabel'),
       playBtn: document.getElementById('playBtn'),
       muteBtn: document.getElementById('muteBtn'),
       loopBtn: document.getElementById('loopBtn'),
@@ -362,15 +364,15 @@
     let originalRatio = 1;
 
     function setEnabled(enabled){
-      els.fsBtn.disabled = !enabled;
-      els.modeBtn.disabled = !enabled;
-      els.sizeRange.disabled = !enabled;
-      els.gapRange.disabled = !enabled;
-      els.zoomRange.disabled = !enabled;
-      els.ratioBtn.disabled = !enabled;
-      els.playBtn.disabled = !enabled;
-      els.muteBtn.disabled = !enabled;
-      els.loopBtn.disabled = !enabled;
+      if (els.fsBtn) els.fsBtn.disabled = !enabled;
+      if (els.modeBtn) els.modeBtn.disabled = !enabled;
+      if (els.sizeRange) els.sizeRange.disabled = !enabled;
+      if (els.gapRange) els.gapRange.disabled = !enabled;
+      if (els.zoomRange) els.zoomRange.disabled = !enabled;
+      if (els.ratioBtn) els.ratioBtn.disabled = !enabled;
+      if (els.playBtn) els.playBtn.disabled = !enabled;
+      if (els.muteBtn) els.muteBtn.disabled = !enabled;
+      if (els.loopBtn) els.loopBtn.disabled = !enabled;
     }
 
     function setMode(newMode){
@@ -429,12 +431,13 @@ function applySize(vmin){
       localStorage.setItem('holoRatioMode', ratioMode);
       if (ratioMode === 'auto'){
         document.documentElement.style.setProperty('--ratio', originalRatio);
-        els.ratioLabel.textContent = 'Auto';
+        if (els.ratioLabel) els.ratioLabel.textContent = 'Auto';
       } else {
         document.documentElement.style.setProperty('--ratio', 1);
-        els.ratioLabel.textContent = '1:1';
+        if (els.ratioLabel) els.ratioLabel.textContent = '1:1';
       }
     }
+
 
     // synchronizace přehrávání a času (jednoduchá, robustní)
     let syncTimer = null;
