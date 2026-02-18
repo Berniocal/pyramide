@@ -199,10 +199,10 @@
       padding: 0;
       grid-template-rows:auto 1fr auto;
     }
-    :fullscreen .stage,
-    :-webkit-full-screen .stage{
-      width: min(100vmin, 100vw);
-      height: min(100vmin, 100vh);
+:fullscreen .stage,
+:-webkit-full-screen .stage{
+  width:100vw !important;
+  height:100vh !important;
       border-radius:0;
       border:none;
       box-shadow:none;
@@ -229,6 +229,9 @@
       border-radius:0 !important;
       box-shadow:none !important;
     }
+    body.pureMode{
+  --size: 100vmin !important;
+}
     body.pureMode .guide{ opacity:0; } /* v čistém režimu bez kříže */
   </style>
 </head>
