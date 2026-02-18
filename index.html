@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Hologram video (Pepper’s Ghost)</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <style>
+    :root{
+      --bg:#000;
+      --fg:#eaeaea;
+      --muted:#a9a9a9;
+      --card:#111;
+      --border:#222;
+      --accent:#7dd3fc;
+
+      /* velikost kompozice */
+      --size: min(72vmin, 620px);
+
+      /* mezera uprostřed (pro špičku pyramidy) */
+      --gap: 10px;
+
+      /* velikost jednoho videa (čtverec) */
+      --videoSize: calc((var(--size) - var(--gap) * 2) / 2);
+    }
+
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--fg);
+      font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    .wrap{
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      min-height:100%;
+      padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+      box-sizing:border-box;
+      gap: 12px;
+    }
+
+    header{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    h1{
+      font-size:18px;
+      margin:0;
+      font-weight:650;
+      letter-spacing:.2px;
+    }
+
+    .panel{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+
+    .btn, .file{
+      background:var(--card);
+      border:1px solid var(--border);
+      color:var(--fg);
+      border-radius:12px;
+      padding:10px 12px;
+      cursor:pointer;
+      user-select:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      text-decoration:none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover{ border-color:#2b2b2b; }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ border-color: #2a2a2a; box-shadow: 0 0 0 1px rgba(125,211,252,.2) inset; }
+    .btn.primary:hover{ border-color: rgba(125,211,252,.6); }
+    .btn[disabled]{ opacity:.45; cursor:not-allowed; transform:none; }
+
+    input[type="file"]{ display:none; }
+
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .chip{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:8px 10px;
+      color:var(--muted);
+      font-size:13px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .chip strong{ color:var(--fg); font-weight:650; }
+
+    /* Hologram stage */
+    .stageWrap{
+      display:grid;
+      place-items:center;
+      width:100%;
+    }
+    .stage{
+      width:var(--size);
+      height:var(--size);
+      position:relative;
+      background:#000;
+      border:1px solid #111;
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      touch-action: manipulation; /* zlepší dvojklik na mobilech */
+    }
+
+    .guide{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.25;
+    }
+    .guide::before, .guide::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      background:#fff;
+      opacity:.18;
+    }
+    .guide::before{ width:2px; height:100%; }
+    .guide::after{ height:2px; width:100%; }
+
+    /* 4 videa rozmístěná do kříže */
+    .v{
+      position:absolute;
+      width: var(--videoSize);
+      height: var(--videoSize);
+      object-fit: cover; /* vyplní čtverec, ořeže */
+      background:#000;
+      filter: saturate(1.05) contrast(1.05);
+    }
+
+    /* středový “mrtvý” čtverec (kam se opírá špička pyramidy) */
+    .centerHole{
+      position:absolute;
+      width: calc(var(--gap) * 2);
+      height: calc(var(--gap) * 2);
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      background:#000;
+      border-radius:10px;
+    }
+
+    /* pozice */
+    .top    { left:50%; top: calc(50% - var(--gap) - var(--videoSize)); transform:translateX(-50%); }
+    .bottom { left:50%; top: calc(50% + var(--gap)); transform:translateX(-50%); }
+    .left   { left: calc(50% - var(--gap) - var(--videoSize)); top:50%; transform:translateY(-50%); }
+    .right  { left: calc(50% + var(--gap)); top:50%; transform:translateY(-50%); }
+
+    /* rotace pro Pepper’s Ghost (standardní “pyramida na telefonu”) */
+    .mode-standard .top    { transform:translateX(-50%) rotate(180deg); }
+    .mode-standard .bottom { transform:translateX(-50%) rotate(0deg); }
+    .mode-standard .left   { transform:translateY(-50%) rotate(90deg); }
+    .mode-standard .right  { transform:translateY(-50%) rotate(-90deg); }
+
+    /* alternativní rotace */
+    .mode-invert .top    { transform:translateX(-50%) rotate(0deg); }
+    .mode-invert .bottom { transform:translateX(-50%) rotate(180deg); }
+    .mode-invert .left   { transform:translateY(-50%) rotate(-90deg); }
+    .mode-invert .right  { transform:translateY(-50%) rotate(90deg); }
+
+    footer{
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+    }
+
+    /* Fullscreen: ať se stage roztáhne */
+    :fullscreen .wrap,
+    :-webkit-full-screen .wrap{
+      padding: 0;
+      grid-template-rows:auto 1fr auto;
+    }
+    :fullscreen .stage,
+    :-webkit-full-screen .stage{
+      width: min(100vmin, 100vw);
+      height: min(100vmin, 100vh);
+      border-radius:0;
+      border:none;
+      box-shadow:none;
+    }
+
+    /* --- ČISTÝ HOLOGRAM REŽIM (jen video, bez ovládání) --- */
+    body.pureMode header,
+    body.pureMode .controls,
+    body.pureMode footer{
+      display:none !important;
+    }
+    body.pureMode .wrap{
+      padding:0 !important;
+      grid-template-rows:1fr !important;
+      gap:0 !important;
+    }
+    body.pureMode .stageWrap{
+      place-items:stretch !important;
+    }
+    body.pureMode .stage{
+      width:100vw !important;
+      height:100vh !important;
+      border:none !important;
+      border-radius:0 !important;
+      box-shadow:none !important;
+    }
+    body.pureMode .guide{ opacity:0; } /* v čistém režimu bez kříže */
+  </style>
+</head>
+
+<body>
+  <div class="wrap" id="app">
+    <header>
+      <h1>Hologram video (Pepper’s Ghost) – 4× zrcadlení</h1>
+      <div class="panel">
+        <label class="file btn primary" for="fileInput" title="Nahraj video">
+          📹 Nahrát video
+        </label>
+        <input id="fileInput" type="file" accept="video/*" />
+        <button class="btn" id="demoBtn" title="Načíst demo (pokud existuje soubor demo.mp4 vedle indexu)">
+          🦋 Demo
+        </button>
+        <button class="btn" id="fsBtn" title="Celá obrazovka" disabled>
+          ⛶ Fullscreen
+        </button>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="chip">
+        Režim: <strong id="modeLabel">Standard</strong>
+      </div>
+      <button class="btn" id="modeBtn" disabled>🔄 Přepnout režim</button>
+
+      <div class="chip">
+        Velikost: <strong id="sizeLabel">72vmin</strong>
+      </div>
+      <input id="sizeRange" type="range" min="40" max="95" value="72" style="width:220px" disabled />
+
+      <div class="chip">
+        Střed (gap): <strong id="gapLabel">10px</strong>
+      </div>
+      <!-- gap až 120 px (60+ bez problému) -->
+      <input id="gapRange" type="range" min="0" max="120" value="10" style="width:200px" disabled />
+
+      <button class="btn" id="playBtn" disabled>▶︎ / ⏸︎</button>
+      <button class="btn" id="muteBtn" disabled>🔇 / 🔊</button>
+      <button class="btn" id="loopBtn" disabled>🔁 Loop: ON</button>
+    </div>
+
+    <main class="stageWrap">
+      <div class="stage mode-standard" id="stage" title="Dvojklik: čistý fullscreen režim / zpět">
+        <div class="guide"></div>
+        <div class="centerHole"></div>
+
+        <!-- 4 synchronizovaná videa -->
+        <video class="v top"    id="vTop"    playsinline></video>
+        <video class="v bottom" id="vBottom" playsinline></video>
+        <video class="v left"   id="vLeft"   playsinline></video>
+        <video class="v right"  id="vRight"  playsinline></video>
+      </div>
+    </main>
+
+    <footer>
+      Tip: nejlepší efekt je u videí s <strong>černým pozadím</strong>. Dvojklik kdekoliv přepne čistý fullscreen hologram.
+    </footer>
+  </div>
+
+  <script>
+    // --- PWA registrace service workeru ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    const els = {
+      fileInput: document.getElementById('fileInput'),
+      demoBtn: document.getElementById('demoBtn'),
+      fsBtn: document.getElementById('fsBtn'),
+      modeBtn: document.getElementById('modeBtn'),
+      modeLabel: document.getElementById('modeLabel'),
+      stage: document.getElementById('stage'),
+      sizeRange: document.getElementById('sizeRange'),
+      sizeLabel: document.getElementById('sizeLabel'),
+      gapRange: document.getElementById('gapRange'),
+      gapLabel: document.getElementById('gapLabel'),
+      playBtn: document.getElementById('playBtn'),
+      muteBtn: document.getElementById('muteBtn'),
+      loopBtn: document.getElementById('loopBtn'),
+      vids: {
+        top: document.getElementById('vTop'),
+        bottom: document.getElementById('vBottom'),
+        left: document.getElementById('vLeft'),
+        right: document.getElementById('vRight'),
+      }
+    };
+
+    let currentURL = null;
+
+    // nastavení uložené v localStorage
+    let mode = localStorage.getItem('holoMode') || 'standard'; // 'standard' | 'invert'
+    let loopOn = (localStorage.getItem('holoLoop') ?? '1') === '1';
+    let muted = (localStorage.getItem('holoMuted') ?? '1') === '1'; // default muted = ON (autoplay friendly)
+    let pure = false; // čistý režim fullscreen
+
+    function setEnabled(enabled){
+      els.fsBtn.disabled = !enabled;
+      els.modeBtn.disabled = !enabled;
+      els.sizeRange.disabled = !enabled;
+      els.gapRange.disabled = !enabled;
+      els.playBtn.disabled = !enabled;
+      els.muteBtn.disabled = !enabled;
+      els.loopBtn.disabled = !enabled;
+    }
+
+    function setMode(newMode){
+      mode = newMode;
+      els.stage.classList.toggle('mode-standard', mode === 'standard');
+      els.stage.classList.toggle('mode-invert', mode === 'invert');
+      els.modeLabel.textContent = (mode === 'standard') ? 'Standard' : 'Invert';
+      localStorage.setItem('holoMode', mode);
+    }
+
+    function setLoop(on){
+      loopOn = on;
+      localStorage.setItem('holoLoop', loopOn ? '1' : '0');
+      els.loopBtn.textContent = '🔁 Loop: ' + (loopOn ? 'ON' : 'OFF');
+      for (const v of Object.values(els.vids)) v.loop = loopOn;
+    }
+
+    function setMuted(on){
+      muted = on;
+      localStorage.setItem('holoMuted', muted ? '1' : '0');
+      els.muteBtn.textContent = muted ? '🔇 / 🔊' : '🔊 / 🔇';
+      for (const v of Object.values(els.vids)) v.muted = muted;
+    }
+
+    function applySize(vmin){
+      document.documentElement.style.setProperty('--size', `min(${vmin}vmin, 620px)`);
+      els.sizeLabel.textContent = `${vmin}vmin`;
+      localStorage.setItem('holoSize', String(vmin));
+    }
+
+    function applyGap(px){
+      document.documentElement.style.setProperty('--gap', `${px}px`);
+      els.gapLabel.textContent = `${px}px`;
+      localStorage.setItem('holoGap', String(px));
+    }
+
+    // synchronizace přehrávání a času (jednoduchá, robustní)
+    let syncTimer = null;
+    function startSync(){
+      stopSync();
+      syncTimer = setInterval(() => {
+        const ref = els.vids.bottom;
+        if (!ref || ref.readyState < 2) return;
+
+        const t = ref.currentTime;
+        for (const v of Object.values(els.vids)) {
+          if (v === ref) continue;
+          if (v.readyState < 2) continue;
+          const dt = Math.abs(v.currentTime - t);
+          if (dt > 0.08) v.currentTime = t; // dorovná “ujetí”
+          if (ref.paused && !v.paused) v.pause();
+          if (!ref.paused && v.paused) v.play().catch(()=>{});
+        }
+      }, 200);
+    }
+    function stopSync(){
+      if (syncTimer) clearInterval(syncTimer);
+      syncTimer = null;
+    }
+
+    async function loadVideoFromURL(url){
+      // uvolnit starý blob
+      if (currentURL && currentURL.startsWith('blob:')) URL.revokeObjectURL(currentURL);
+      currentURL = url;
+
+      for (const v of Object.values(els.vids)) {
+        v.src = url;
+        v.playsInline = true;
+        v.preload = 'auto';
+        v.loop = loopOn;
+        v.muted = muted;
+      }
+
+      // počkat na metadata (aspoň u jednoho)
+      await new Promise((resolve, reject) => {
+        const v = els.vids.bottom;
+        const onOk = () => { cleanup(); resolve(); };
+        const onErr = () => { cleanup(); reject(new Error('Nelze načíst video')); };
+        const cleanup = () => {
+          v.removeEventListener('loadedmetadata', onOk);
+          v.removeEventListener('error', onErr);
+        };
+        v.addEventListener('loadedmetadata', onOk, { once:true });
+        v.addEventListener('error', onErr, { once:true });
+      });
+
+      setEnabled(true);
+      startSync();
+
+      // pokus o autoplay (na mobilu většinou jen když je muted)
+      for (const v of Object.values(els.vids)) {
+        try { await v.play(); } catch(e) {}
+      }
+    }
+
+    // --- ČISTÝ FULLSCREEN REŽIM (dvojklik) ---
+    async function enterPureMode(){
+      pure = true;
+      document.body.classList.add("pureMode");
+      if (!document.fullscreenElement){
+        try { await document.documentElement.requestFullscreen(); } catch(e) {}
+      }
+    }
+
+    async function exitPureMode(){
+      pure = false;
+      document.body.classList.remove("pureMode");
+      if (document.fullscreenElement){
+        try { await document.exitFullscreen(); } catch(e) {}
+      }
+    }
+
+    // dvojklik kdekoliv (pokud nechceš, aby to chytalo třeba na input range, necháváme i tak)
+    document.addEventListener("dblclick", (e) => {
+      // Když ještě není video načtené, dvojklik nic nedělá
+      if (els.fsBtn.disabled) return;
+
+      if (pure) exitPureMode();
+      else enterPureMode();
+    });
+
+    // když uživatel vypne fullscreen jinak (gestem), vrať UI
+    document.addEventListener("fullscreenchange", () => {
+      if (!document.fullscreenElement && pure){
+        // fullscreen skončil, ukonči i pure mode
+        pure = false;
+        document.body.classList.remove("pureMode");
+      }
+    });
+
+    // --- UI události ---
+    els.fileInput.addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      try{
+        await loadVideoFromURL(url);
+      }catch(err){
+        alert('Video se nepodařilo načíst.');
+      }
+    });
+
+    els.demoBtn.addEventListener('click', async () => {
+      try{
+        await loadVideoFromURL('./demo.mp4');
+      }catch(err){
+        alert('Demo není k dispozici. Nahraj vlastní video (nebo přidej demo.mp4 vedle index.html).');
+      }
+    });
+
+    els.modeBtn.addEventListener('click', () => {
+      setMode(mode === 'standard' ? 'invert' : 'standard');
+    });
+
+    els.playBtn.addEventListener('click', async () => {
+      const ref = els.vids.bottom;
+      if (ref.paused){
+        for (const v of Object.values(els.vids)) { try{ await v.play(); }catch(e){} }
+      } else {
+        for (const v of Object.values(els.vids)) v.pause();
+      }
+    });
+
+    els.muteBtn.addEventListener('click', () => setMuted(!muted));
+    els.loopBtn.addEventListener('click', () => setLoop(!loopOn));
+
+    els.sizeRange.addEventListener('input', (e) => applySize(Number(e.target.value)));
+    els.gapRange.addEventListener('input', (e) => applyGap(Number(e.target.value)));
+
+    els.fsBtn.addEventListener('click', async () => {
+      // klasické tlačítko necháváme jako alternativu
+      if (!document.fullscreenElement){
+        try{ await document.documentElement.requestFullscreen(); }catch(e){}
+      } else {
+        try{ await document.exitFullscreen(); }catch(e){}
+      }
+    });
+
+    // --- načíst uložené nastavení ---
+    setMode(mode);
+    const savedSize = Number(localStorage.getItem('holoSize') || 72);
+    const savedGap  = Number(localStorage.getItem('holoGap')  || 10);
+
+    els.sizeRange.value = String(savedSize);
+    els.gapRange.value = String(savedGap);
+
+    applySize(savedSize);
+    applyGap(savedGap);
+
+    setLoop(loopOn);
+    setMuted(muted);
+
+    setEnabled(false);
+  </script>
+</body>
+</html>
