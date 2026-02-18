@@ -396,22 +396,41 @@
       stopSync();
       syncTimer = setInterval(() => {
         const ref = els.vids.bottom;
-        if (!ref || ref.readyState < 2) return;
+        if (!ref || ref.readyState < 2 || ref.seeking) return;
 
         const t = ref.currentTime;
+
         for (const v of Object.values(els.vids)) {
           if (v === ref) continue;
-          if (v.readyState < 2) continue;
-          const dt = Math.abs(v.currentTime - t);
-          if (dt > 0.08) v.currentTime = t; // dorovná “ujetí”
+          if (v.readyState < 2 || v.seeking) continue;
+
+          const dt = v.currentTime - t;
+          const adt = Math.abs(dt);
+
+          // Když ujel hodně, udělej jen občasný skok (jinak by to cukalo pořád)
+          if (adt > 0.6) {
+            v.currentTime = t;
+            v.playbackRate = 1.0;
+            continue;
+          }
+
+          // Jemné dorovnání bez skoků v čase
+          if (adt > 0.10) {
+            v.playbackRate = (dt > 0) ? 0.96 : 1.04;
+          } else {
+            v.playbackRate = 1.0;
+          }
+
           if (ref.paused && !v.paused) v.pause();
           if (!ref.paused && v.paused) v.play().catch(()=>{});
         }
-      }, 200);
+      }, 400);
     }
     function stopSync(){
       if (syncTimer) clearInterval(syncTimer);
       syncTimer = null;
+      // Vrať rychlost zpět na normál (když se sync vypne nebo restartuje)
+      for (const v of Object.values(els.vids)) v.playbackRate = 1.0;
     }
 
     async function loadVideoFromURL(url){
