@@ -15,13 +15,13 @@
       --border:#222;
       --accent:#7dd3fc;
 
-      /* velikost kompozice */
+      /* velikost kompozice (fix) */
       --size: min(72vmin, 620px);
 
       /* mezera uprostřed (pro špičku pyramidy) */
       --gap: 10px;
 
-      /* zoom videí (1.0–3.0) */
+      /* zoom videí (fix 1×) */
       --zoom: 1;
 
       /* poměr stran videa (šířka / výška) */
@@ -30,7 +30,7 @@
       /* šířka a výška jednoho videa */
       --videoW: calc((var(--size) - var(--gap) * 2) / 2);
       --videoH: calc(var(--videoW) / var(--ratio));
-}
+    }
 
     html,body{height:100%;}
     body{
@@ -183,13 +183,13 @@
     .left   { left: calc(50% - var(--gap) - var(--videoW)); top:50%; }
     .right  { left: calc(50% + var(--gap)); top:50%; }
 
-    /* rotace pro Pepper’s Ghost (standardní “pyramida na telefonu”) + ZOOM */
+    /* rotace pro Pepper’s Ghost (standardní “pyramida na telefonu”) + ZOOM (fix 1×) */
     .mode-standard .top    { transform:translateX(-50%) rotate(180deg) scale(var(--zoom)); }
     .mode-standard .bottom { transform:translateX(-50%) rotate(0deg)   scale(var(--zoom)); }
     .mode-standard .left   { transform:translateY(-50%) rotate(90deg)  scale(var(--zoom)); }
     .mode-standard .right  { transform:translateY(-50%) rotate(-90deg) scale(var(--zoom)); }
 
-    /* alternativní rotace + ZOOM */
+    /* alternativní rotace + ZOOM (fix 1×) */
     .mode-invert .top    { transform:translateX(-50%) rotate(0deg)   scale(var(--zoom)); }
     .mode-invert .bottom { transform:translateX(-50%) rotate(180deg) scale(var(--zoom)); }
     .mode-invert .left   { transform:translateY(-50%) rotate(-90deg) scale(var(--zoom)); }
@@ -207,10 +207,10 @@
       padding: 0;
       grid-template-rows:auto 1fr auto;
     }
-:fullscreen .stage,
-:-webkit-full-screen .stage{
-  width:100vw !important;
-  height:100vh !important;
+    :fullscreen .stage,
+    :-webkit-full-screen .stage{
+      width:100vw !important;
+      height:100vh !important;
       border-radius:0;
       border:none;
       box-shadow:none;
@@ -238,8 +238,8 @@
       box-shadow:none !important;
     }
     body.pureMode{
-  --size: 100vmin !important;
-}
+      --size: 100vmin !important;
+    }
     body.pureMode .guide{ opacity:0; } /* v čistém režimu bez kříže */
   </style>
 </head>
@@ -269,20 +269,10 @@
       <button class="btn" id="modeBtn" disabled>🔄 Přepnout režim</button>
 
       <div class="chip">
-        Velikost: <strong id="sizeLabel">72vmin</strong>
+        Střed / Velikost: <strong id="gapLabel">10px</strong>
       </div>
-      <input id="sizeRange" type="range" min="40" max="95" value="72" style="width:220px" disabled />
-
-      <div class="chip">
-        Střed (gap): <strong id="gapLabel">10px</strong>
-      </div>
-      <!-- gap až 120 px (60+ bez problému) -->
-      <input id="gapRange" type="range" min="0" max="120" value="10" style="width:200px" disabled />
-
-      <div class="chip">
-        Zoom: <strong id="zoomLabel">1.0×</strong>
-      </div>
-      <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1" style="width:200px" disabled />
+      <!-- jeden slider ovládá gap a tím i velikost videí -->
+      <input id="gapRange" type="range" min="0" max="120" value="10" style="width:240px" disabled />
 
       <div class="chip">
         Poměr: <strong id="ratioLabel">1:1</strong>
@@ -330,12 +320,8 @@
       modeBtn: document.getElementById('modeBtn'),
       modeLabel: document.getElementById('modeLabel'),
       stage: document.getElementById('stage'),
-      sizeRange: document.getElementById('sizeRange'),
-      sizeLabel: document.getElementById('sizeLabel'),
       gapRange: document.getElementById('gapRange'),
       gapLabel: document.getElementById('gapLabel'),
-      zoomRange: document.getElementById('zoomRange'),
-      zoomLabel: document.getElementById('zoomLabel'),
       ratioBtn: document.getElementById('ratioBtn'),
       ratioLabel: document.getElementById('ratioLabel'),
       playBtn: document.getElementById('playBtn'),
@@ -364,12 +350,13 @@
     let ratioMode = localStorage.getItem('holoRatioMode') || 'square'; // 'square' | 'auto'
     let originalRatio = 1;
 
+    // zoom je zrušený (fix 1×)
+    document.documentElement.style.setProperty('--zoom', 1);
+
     function setEnabled(enabled){
       if (els.fsBtn) els.fsBtn.disabled = !enabled;
       if (els.modeBtn) els.modeBtn.disabled = !enabled;
-      if (els.sizeRange) els.sizeRange.disabled = !enabled;
       if (els.gapRange) els.gapRange.disabled = !enabled;
-      if (els.zoomRange) els.zoomRange.disabled = !enabled;
       if (els.ratioBtn) els.ratioBtn.disabled = !enabled;
       if (els.playBtn) els.playBtn.disabled = !enabled;
       if (els.muteBtn) els.muteBtn.disabled = !enabled;
@@ -394,7 +381,8 @@
         for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.loop = loopOn;
       }
     }
-function setMuted(on){
+
+    function setMuted(on){
       muted = on;
       localStorage.setItem('holoMuted', muted ? '1' : '0');
       els.muteBtn.textContent = muted ? '🔇 / 🔊' : '🔊 / 🔇';
@@ -409,22 +397,11 @@ function setMuted(on){
         for (const v of [els.vids.top, els.vids.bottom, els.vids.left, els.vids.right]) v.muted = true;
       }
     }
-function applySize(vmin){
-      document.documentElement.style.setProperty('--size', `min(${vmin}vmin, 620px)`);
-      els.sizeLabel.textContent = `${vmin}vmin`;
-      localStorage.setItem('holoSize', String(vmin));
-    }
 
     function applyGap(px){
       document.documentElement.style.setProperty('--gap', `${px}px`);
       els.gapLabel.textContent = `${px}px`;
       localStorage.setItem('holoGap', String(px));
-    }
-
-    function applyZoom(z){
-      document.documentElement.style.setProperty('--zoom', z);
-      els.zoomLabel.textContent = z.toFixed(1) + "×";
-      localStorage.setItem('holoZoom', String(z));
     }
 
     function setRatioMode(mode){
@@ -438,6 +415,7 @@ function applySize(vmin){
         if (els.ratioLabel) els.ratioLabel.textContent = '1:1';
       }
     }
+
     // synchronizace přehrávání a času (jednoduchá, robustní)
     let syncTimer = null;
     function startSync(){
@@ -573,7 +551,6 @@ function applySize(vmin){
       }
     }
 
-
     // --- ČISTÝ FULLSCREEN REŽIM (dvojklik) ---
     async function enterPureMode(){
       pure = true;
@@ -644,19 +621,17 @@ function applySize(vmin){
         master.pause();
       }
     });
-els.muteBtn.addEventListener('click', () => setMuted(!muted));
+
+    els.muteBtn.addEventListener('click', () => setMuted(!muted));
     els.loopBtn.addEventListener('click', () => setLoop(!loopOn));
 
-    els.sizeRange.addEventListener('input', (e) => applySize(Number(e.target.value)));
     els.gapRange.addEventListener('input', (e) => applyGap(Number(e.target.value)));
-    els.zoomRange.addEventListener('input', (e) => applyZoom(Number(e.target.value)));
 
-if (els.ratioBtn) {
-  els.ratioBtn.addEventListener('click', () => {
-    setRatioMode(ratioMode === 'square' ? 'auto' : 'square');
-  });
-}
-
+    if (els.ratioBtn) {
+      els.ratioBtn.addEventListener('click', () => {
+        setRatioMode(ratioMode === 'square' ? 'auto' : 'square');
+      });
+    }
 
     els.fsBtn.addEventListener('click', async () => {
       // klasické tlačítko necháváme jako alternativu
@@ -670,17 +645,10 @@ if (els.ratioBtn) {
     // --- načíst uložené nastavení ---
     setMode(mode);
 
-    const savedSize = Number(localStorage.getItem('holoSize') || 72);
     const savedGap  = Number(localStorage.getItem('holoGap')  || 10);
-    const savedZoom = Number(localStorage.getItem('holoZoom') || 1);
-
-    els.sizeRange.value = String(savedSize);
     els.gapRange.value = String(savedGap);
-    els.zoomRange.value = String(savedZoom);
-
-    applySize(savedSize);
     applyGap(savedGap);
-    applyZoom(savedZoom);
+
     // výchozí poměr před načtením videa
     try{ setRatioMode(ratioMode); }catch(e){}
 
