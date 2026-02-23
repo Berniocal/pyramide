@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hologram-pwa-v14';
+const CACHE_NAME = 'hologram-pwa-v15';
 const ASSETS = [
   './',
   './index.html',
